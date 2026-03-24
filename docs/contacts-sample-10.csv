@@ -1,0 +1,11 @@
+name,email,phone,company,tags,stage,notes,ghl_contact_id
+Sarah Chen,sarah.chen@chendesignstudio.com,+1 555-0101,Chen Design Studio,"architect;commercial",qualified,Interested in enterprise automation rollout,ghl-demo-001
+Marcus Webb,marcus.webb@metrobuilders.io,+1 555-0102,Metro Builders LLC,"contractor;residential",new,Follow up on Q2 partnership deck,ghl-demo-002
+Elena Ruiz,elena.ruz@sunsetrealty.com,+1 555-0103,Sunset Realty Group,"real_estate;referral",qualified,Asked for Calendly + SMS workflow,ghl-demo-003
+James Okonkwo,james.o@urbanstruct.dev,+1 555-0104,UrbanStruct Developers,"developer;mixed-use",new,Large project — budget TBD,ghl-demo-004
+Priya Nair,priya@apexhomes.co,+1 555-0105,Apex Custom Homes,"home_builder;high-intent",booked,Site visit scheduled next week,ghl-demo-005
+Daniel Frost,daniel.frost@northline.arch,+1 555-0106,Northline Architecture,"architect;design-build",qualified,Needs RAG FAQ for spec questions,ghl-demo-006
+Olivia Park,olivia.park@greenfield.re,+1 555-0107,Greenfield Realty Partners,"real_estate;investor",new,Outbound from partner list,ghl-demo-007
+Ryan Torres,ryan.t@craftco.com,+1 555-0108,CraftCo General Contracting,"contractor;commercial",qualified,Wants automated intake + routing,ghl-demo-008
+Amelia Hughes,amelia@ridgecrest.dev,+1 555-0109,Ridgecrest Land Development,"developer;land",new,Exploring AI for lead triage,ghl-demo-009
+Noah Kim,noah.kim@skyline.partners,+1 555-0110,Skyline Development Partners,"developer;partnership",qualified,Next phase: company-level campaign targeting,ghl-demo-010

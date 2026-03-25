@@ -1,0 +1,2 @@
+username,email,phone,company,source,status,lead_score,budget,project_type,timeline,is_qualified,tags,notes,stage
+Sajjad Hussain,sajjadhussain9582@gmail.com,+1234567890,StrategistHub,Direct,new,100,5000,Web Development,Immediate,true,"[""test"", ""vip""]",Initial contact for outreach testing.,test-sender

@@ -259,8 +259,7 @@ export function MessagesInboxSplit() {
               Select a conversation
             </p>
             <p className="max-w-sm text-xs leading-relaxed">
-              Choose a thread from the list. URLs use conversation UUIDs per{" "}
-              <code className="bg-muted rounded px-1">?c=</code> (see docs/phase2.md).
+              Choose a thread from the list.
             </p>
           </div>
         ) : (

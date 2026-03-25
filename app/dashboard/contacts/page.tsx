@@ -37,43 +37,34 @@ export default function ContactsPage() {
   }, [effectiveQuery]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-foreground text-2xl font-semibold tracking-tight">Contacts</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Your CRM view. When the backend adds contacts endpoints, this becomes the source of
-            truth; until then you can enable mock data with{" "}
-            <code className="bg-muted rounded px-1 py-0.5 text-xs">NEXT_PUBLIC_USE_MOCK_DATA=true</code>.
-          </p>
+
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="default" size="sm">
             <Link href="/dashboard/contacts/import">Import CSV/JSON</Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="default" size="sm">
             <Link href="/dashboard/intake">Capture new lead</Link>
           </Button>
         </div>
       </div>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Search</CardTitle>
-          <CardDescription>Find by name, email, or company.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Search className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" aria-hidden />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search contacts…"
-              className="pl-9"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex justify-start">
+
+        <div className="relative max-w-xl">
+          <Search className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" aria-hidden />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search contacts…"
+            className="pl-9"
+          />
+        </div>
+      </div>
 
       {error ? (
         <div className="bg-destructive/10 text-destructive rounded-lg px-4 py-3 text-sm" role="alert">
@@ -96,9 +87,9 @@ export default function ContactsPage() {
             </div>
           ) : (
             <div className="divide-border overflow-hidden rounded-lg border divide-y">
-              {rows.map((c) => (
+              {rows.map((c, i) => (
                 <Link
-                  key={c.id}
+                  key={i}
                   href={`/dashboard/contacts/${encodeURIComponent(c.id)}`}
                   className="hover:bg-muted/50 block px-4 py-3 transition-colors"
                 >

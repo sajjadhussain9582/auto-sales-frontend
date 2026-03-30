@@ -1,69 +1,141 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Calendar, Database, Mail, MessageSquare, ShieldCheck, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { integrationsService } from "@/services/integrations.service";
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import {
+  Calendar,
+  Database,
+  Mail,
+  MessageSquare,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  X,
+  Share,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { integrationsService } from "@/services/integrations.service"
+import { Integration } from "@/types/integration"
+import { toast } from "sonner"
 
 export default function IntegrationsPage() {
-  const [integrations, setIntegrations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeModal, setActiveModal] = useState<"email" | "calendly" | "availability" | null>(null);
-  const [eventTypes, setEventTypes] = useState<any[]>([]);
-  const [fetchingEvents, setFetchingEvents] = useState(false);
+  const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeModal, setActiveModal] = useState<
+    "email" | "calendly" | "availability" | null
+  >(null)
+  const [eventTypes, setEventTypes] = useState<any[]>([])
+  const [fetchingEvents, setFetchingEvents] = useState(false)
 
   useEffect(() => {
-    fetchIntegrations();
-  }, []);
+    fetchIntegrations()
+
+    // Handle HubSpot OAuth callback params
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get("status")
+    const provider = params.get("provider")
+
+    if (provider === "hubspot") {
+      if (status === "success") {
+        toast.success("HubSpot connected successfully!")
+        fetchIntegrations()
+      } else if (status === "error") {
+        const msg = params.get("message") || "An unknown error occurred."
+        toast.error(`HubSpot connection failed: ${msg}`)
+      }
+      // Clean up URL params
+      window.history.replaceState({}, document.title, "/dashboard/integrations")
+    }
+  }, [])
 
   const fetchIntegrations = async () => {
     try {
-      const data = await integrationsService.list();
-      setIntegrations(data);
-      
-      const cal = data.find(i => i.provider === "scheduling" && i.status === "connected");
+      const data = await integrationsService.list()
+      setIntegrations(data)
+
+      const cal = data.find(
+        (i) => i.provider === "scheduling" && i.status === "connected"
+      )
       if (cal) {
-        fetchEventTypes();
+        fetchEventTypes()
       }
     } catch (err) {
-      console.error("Failed to fetch integrations", err);
+      console.error("Failed to fetch integrations", err)
+      toast.error("Failed to load integrations.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const fetchEventTypes = async () => {
-    setFetchingEvents(true);
+    setFetchingEvents(true)
     try {
-      const data = await integrationsService.getCalendlyEventTypes();
-      setEventTypes(data.collection || []);
+      const data = await integrationsService.getCalendlyEventTypes()
+      setEventTypes(data.collection || [])
     } catch (err) {
-      console.error("Failed to fetch event types", err);
+      console.error("Failed to fetch event types", err)
     } finally {
-      setFetchingEvents(false);
+      setFetchingEvents(false)
     }
-  };
+  }
+
+  const handleDisconnect = async (provider: string) => {
+    try {
+      await integrationsService.disconnect(provider)
+      toast.success(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} disconnected.`
+      )
+      fetchIntegrations()
+    } catch (error) {
+      console.error(`Failed to disconnect ${provider}`, error)
+      toast.error(`Failed to disconnect ${provider}.`)
+    }
+  }
 
   const getStatus = (provider: string) => {
-    const integration = integrations.find((i) => i.provider === provider);
-    return integration ? integration.status : "Not connected";
-  };
+    const integration = integrations.find((i) => i.provider === provider)
+    return integration
+      ? (integration.status as "connected" | "disconnected" | "pending")
+      : "disconnected"
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h2 className="text-foreground text-2xl font-semibold tracking-tight">Integrations</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Connect GoHighLevel, email, SMS, and scheduling. This page is a professional shell until
-          OAuth/webhooks are implemented in the backend.
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Integrations
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Connect your tools and services to streamline your workflow.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <IntegrationCard
+          title="HubSpot"
+          description="Sync contacts and conversations with HubSpot CRM."
+          icon={<Share className="size-4" aria-hidden />}
+          status={getStatus("hubspot")}
+          onConnect={async () => {
+            try {
+              await integrationsService.connectHubspot()
+            } catch (err) {
+              console.error("Failed to initiate HubSpot connection", err)
+              toast.error("Failed to initiate HubSpot connection.")
+            }
+          }}
+          onDisconnect={() => handleDisconnect("hubspot")}
+        />
         <IntegrationCard
           title="GoHighLevel"
           description="Preferred CRM. Webhooks create/update contacts and conversations."
@@ -77,6 +149,7 @@ export default function IntegrationsPage() {
           icon={<Mail className="size-4" aria-hidden />}
           status={getStatus("email")}
           onConnect={() => setActiveModal("email")}
+          onDisconnect={() => handleDisconnect("email")}
         />
         <IntegrationCard
           title="SMS"
@@ -91,7 +164,12 @@ export default function IntegrationsPage() {
           icon={<Calendar className="size-4" aria-hidden />}
           status={getStatus("scheduling")}
           onConnect={() => setActiveModal("calendly")}
-          onViewAvailability={getStatus("scheduling") === "connected" ? () => setActiveModal("availability") : undefined}
+          onDisconnect={() => handleDisconnect("scheduling")}
+          onViewAvailability={
+            getStatus("scheduling") === "connected"
+              ? () => setActiveModal("availability")
+              : undefined
+          }
           eventTypes={eventTypes}
           isLoadingEvents={fetchingEvents}
         />
@@ -108,8 +186,8 @@ export default function IntegrationsPage() {
         <EmailConfigModal
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
-            setActiveModal(null);
-            fetchIntegrations();
+            setActiveModal(null)
+            fetchIntegrations()
           }}
         />
       )}
@@ -118,8 +196,8 @@ export default function IntegrationsPage() {
         <CalendlyConfigModal
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
-            setActiveModal(null);
-            fetchIntegrations();
+            setActiveModal(null)
+            fetchIntegrations()
           }}
         />
       )}
@@ -133,9 +211,12 @@ export default function IntegrationsPage() {
 
       <Card className="border-border bg-info/25">
         <CardHeader>
-          <CardTitle className="text-info-foreground text-base">Next backend work</CardTitle>
+          <CardTitle className="text-base text-info-foreground">
+            Next backend work
+          </CardTitle>
           <CardDescription className="text-info-foreground/80">
-            Add webhook handlers and OAuth flows, then expose connection status APIs for this page.
+            Add webhook handlers and OAuth flows, then expose connection status
+            APIs for this page.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -145,7 +226,7 @@ export default function IntegrationsPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
 
 function IntegrationCard({
@@ -154,21 +235,23 @@ function IntegrationCard({
   status,
   icon,
   onConnect,
+  onDisconnect,
   onViewAvailability,
   eventTypes,
   isLoadingEvents,
 }: {
-  title: string;
-  description: string;
-  status: string;
-  icon: React.ReactNode;
-  onConnect: () => void;
-  onViewAvailability?: () => void;
-  eventTypes?: any[];
-  isLoadingEvents?: boolean;
+  title: string
+  description: string
+  status: "connected" | "disconnected" | "pending"
+  icon: React.ReactNode
+  onConnect: () => void
+  onDisconnect?: () => void
+  onViewAvailability?: () => void
+  eventTypes?: any[]
+  isLoadingEvents?: boolean
 }) {
-  const isConnected = status === "connected";
-  const isPending = status === "pending";
+  const isConnected = status === "connected"
+  const isPending = status === "pending"
 
   return (
     <Card className="border-border bg-card">
@@ -178,7 +261,7 @@ function IntegrationCard({
             <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </div>
-          <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-lg">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             {icon}
           </div>
         </div>
@@ -187,22 +270,37 @@ function IntegrationCard({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
             {isConnected ? (
-              <CheckCircle2 className="text-success size-3.5" />
+              <CheckCircle2 className="size-3.5 text-success" />
             ) : isPending ? (
-              <Loader2 className="text-warning size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 animate-spin text-warning" />
             ) : (
-              <AlertCircle className="text-muted-foreground size-3.5" />
+              <AlertCircle className="size-3.5 text-muted-foreground" />
             )}
-            <span className="text-muted-foreground text-xs capitalize">{status}</span>
+            <span className="text-xs text-muted-foreground capitalize">
+              {status}
+            </span>
           </div>
-          <Button
-            type="button"
-            variant={isConnected ? "outline" : "default"}
-            size="sm"
-            onClick={onConnect}
-          >
-            {isConnected ? "Reconfigure" : "Connect"}
-          </Button>
+          {isConnected ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onDisconnect}
+            >
+              <X className="mr-2 size-3" />
+              Disconnect
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={onConnect}
+              disabled={isPending}
+            >
+              Connect
+            </Button>
+          )}
         </div>
 
         {isConnected && title === "Scheduling" && (
@@ -210,12 +308,17 @@ function IntegrationCard({
             <div className="flex items-center justify-between border-t pt-3">
               <span className="text-xs font-medium">Event Types</span>
               {onViewAvailability && (
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onViewAvailability}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={onViewAvailability}
+                >
                   Preview All
                 </Button>
               )}
             </div>
-            
+
             {isLoadingEvents ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="size-3 animate-spin" />
@@ -224,25 +327,38 @@ function IntegrationCard({
             ) : eventTypes && eventTypes.length > 0 ? (
               <div className="grid gap-2">
                 {eventTypes.slice(0, 3).map((et: any) => (
-                  <div key={et.uri} className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-xs">
+                  <div
+                    key={et.uri}
+                    className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-xs"
+                  >
                     <span className="truncate font-medium">{et.name}</span>
-                    <span className="text-muted-foreground">{et.duration}m</span>
+                    <span className="text-muted-foreground">
+                      {et.duration}m
+                    </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No active event types found.</p>
+              <p className="text-xs text-muted-foreground">
+                No active event types found.
+              </p>
             )}
           </div>
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
-function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [type, setType] = useState<"smtp" | "resend">("smtp");
-  const [loading, setLoading] = useState(false);
+function EmailConfigModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [type, setType] = useState<"smtp" | "resend">("smtp")
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     host: "",
     port: "587",
@@ -250,11 +366,11 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     password: "",
     api_key: "",
     from_email: "",
-  });
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
     try {
       const data =
         type === "smtp"
@@ -270,19 +386,19 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
               type: "resend",
               api_key: formData.api_key,
               from_email: formData.from_email,
-            };
+            }
 
-      await integrationsService.configureEmail(data);
-      onSuccess();
+      await integrationsService.configureEmail(data)
+      onSuccess()
     } catch (err) {
-      console.error("Failed to configure email", err);
+      console.error("Failed to configure email", err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Configure Email</CardTitle>
@@ -318,7 +434,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                 type="email"
                 required
                 value={formData.from_email}
-                onChange={(e) => setFormData({ ...formData, from_email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, from_email: e.target.value })
+                }
               />
             </div>
 
@@ -331,7 +449,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       id="host"
                       required
                       value={formData.host}
-                      onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, host: e.target.value })
+                      }
                     />
                   </div>
                   <div className="space-y-2">
@@ -341,7 +461,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       type="number"
                       required
                       value={formData.port}
-                      onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, port: e.target.value })
+                      }
                     />
                   </div>
                 </div>
@@ -351,7 +473,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     id="user"
                     required
                     value={formData.user}
-                    onChange={(e) => setFormData({ ...formData, user: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, user: e.target.value })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -361,7 +485,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                     type="password"
                     required
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
                   />
                 </div>
               </>
@@ -373,7 +499,9 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   type="password"
                   required
                   value={formData.api_key}
-                  onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, api_key: e.target.value })
+                  }
                 />
               </div>
             )}
@@ -389,32 +517,38 @@ function EmailConfigModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         </form>
       </Card>
     </div>
-  );
+  )
 }
 
-function CalendlyConfigModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [loading, setLoading] = useState(false);
+function CalendlyConfigModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     type: "url" as "url" | "pat",
     token: "",
     booking_url: "",
-  });
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
     try {
-      await integrationsService.configureCalendly(formData);
-      onSuccess();
+      await integrationsService.configureCalendly(formData)
+      onSuccess()
     } catch (err) {
-      console.error("Failed to configure Calendly", err);
+      console.error("Failed to configure Calendly", err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Configure Calendly</CardTitle>
@@ -451,7 +585,9 @@ function CalendlyConfigModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   placeholder="https://calendly.com/your-link"
                   required
                   value={formData.booking_url}
-                  onChange={(e) => setFormData({ ...formData, booking_url: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, booking_url: e.target.value })
+                  }
                 />
               </div>
             ) : (
@@ -462,7 +598,9 @@ function CalendlyConfigModal({ onClose, onSuccess }: { onClose: () => void; onSu
                   type="password"
                   required
                   value={formData.token}
-                  onChange={(e) => setFormData({ ...formData, token: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, token: e.target.value })
+                  }
                 />
               </div>
             )}
@@ -478,38 +616,52 @@ function CalendlyConfigModal({ onClose, onSuccess }: { onClose: () => void; onSu
         </form>
       </Card>
     </div>
-  );
+  )
 }
 
-
-function CalendlyAvailabilityModal({ eventTypes, onClose }: { eventTypes: any[]; onClose: () => void }) {
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+function CalendlyAvailabilityModal({
+  eventTypes,
+  onClose,
+}: {
+  eventTypes: any[]
+  onClose: () => void
+}) {
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (eventTypes && eventTypes.length > 0 && !selectedUrl) {
-      setSelectedUrl(eventTypes[0].scheduling_url);
+      setSelectedUrl(eventTypes[0].scheduling_url)
     }
-  }, [eventTypes, selectedUrl]);
+  }, [eventTypes, selectedUrl])
 
   return (
-    <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <Card className="h-[90vh] w-full max-w-4xl overflow-hidden flex flex-col shadow-2xl border-2">
-        <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+      <Card className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-2 shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between border-b py-4">
           <div>
             <CardTitle className="text-xl">Calendly Availability</CardTitle>
-            <CardDescription>Live preview of your booking calendar</CardDescription>
+            <CardDescription>
+              Live preview of your booking calendar
+            </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="flex items-center gap-2"
+          >
             <X className="size-4" />
             <span>Close</span>
           </Button>
         </CardHeader>
-        <CardContent className="flex-1 p-0 flex flex-col overflow-hidden">
-          <div className="flex gap-2 overflow-x-auto p-4 border-b">
+        <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
+          <div className="flex gap-2 overflow-x-auto border-b p-4">
             {eventTypes.map((et) => (
               <Button
                 key={et.uri}
-                variant={selectedUrl === et.scheduling_url ? "default" : "outline"}
+                variant={
+                  selectedUrl === et.scheduling_url ? "default" : "outline"
+                }
                 size="sm"
                 onClick={() => setSelectedUrl(et.scheduling_url)}
                 className="whitespace-nowrap"
@@ -536,5 +688,5 @@ function CalendlyAvailabilityModal({ eventTypes, onClose }: { eventTypes: any[];
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

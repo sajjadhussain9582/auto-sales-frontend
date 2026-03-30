@@ -5,11 +5,13 @@ import { Integration } from "@/types/integration"
 async function readErrorResponse(res: Response): Promise<string> {
   const text = await res.text()
   try {
-    const data = JSON.parse(text) as { detail?: any }
+    const data = JSON.parse(text) as {
+      detail?: string | Array<{ msg?: string }>
+    }
     if (typeof data.detail === "string") return data.detail
     if (Array.isArray(data.detail)) {
       return data.detail
-        .map((e: any) => e?.msg ?? "")
+        .map((e) => e?.msg ?? "")
         .filter(Boolean)
         .join(", ")
     }
@@ -44,7 +46,7 @@ export const integrationsService = {
     }
   },
 
-  async configureEmail(payload: any): Promise<any> {
+  async configureEmail(payload: Record<string, unknown>): Promise<unknown> {
     const res = await fetch(`${getApiBaseUrl()}/integrations/email/configure`, {
       method: "POST",
       headers: getHeaders(),
@@ -54,7 +56,7 @@ export const integrationsService = {
     return res.json()
   },
 
-  async configureCalendly(payload: any): Promise<any> {
+  async configureCalendly(payload: Record<string, unknown>): Promise<unknown> {
     return fetch(`${getApiBaseUrl()}/integrations/calendly/configure`, {
       method: "POST",
       headers: getHeaders(),
@@ -65,7 +67,7 @@ export const integrationsService = {
     })
   },
 
-  async getCalendlyEventTypes(): Promise<any> {
+  async getCalendlyEventTypes(): Promise<unknown> {
     const res = await fetch(
       `${getApiBaseUrl()}/integrations/calendly/event-types`,
       {
@@ -76,7 +78,7 @@ export const integrationsService = {
     return res.json()
   },
 
-  async disconnect(provider: string): Promise<any> {
+  async disconnect(provider: string): Promise<unknown> {
     const res = await fetch(
       `${getApiBaseUrl()}/integrations/${encodeURIComponent(provider)}/disconnect`,
       {
@@ -88,7 +90,7 @@ export const integrationsService = {
     return res.json()
   },
 
-  async syncContactToHubspot(contactUuid: string): Promise<any> {
+  async syncContactToHubspot(contactUuid: string): Promise<unknown> {
     const res = await fetch(
       `${getApiBaseUrl()}/integrations/hubspot/sync/${encodeURIComponent(contactUuid)}`,
       {

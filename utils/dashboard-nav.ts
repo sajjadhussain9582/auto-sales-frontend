@@ -21,7 +21,7 @@ export type NavItem = {
 export const DASHBOARD_NAV: readonly NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/lead-flow", label: "Lead flow", icon: LayoutTemplate },
-  { href: "/dashboard/intake", label: "New lead", icon: MessageSquarePlus },
+  { href: "/dashboard/sales", label: "Sales Pipeline", icon: MessageSquarePlus },
   { href: "/dashboard/messages", label: "Messages", icon: Inbox },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/outreach/campaigns", label: "Outreach", icon: Megaphone },

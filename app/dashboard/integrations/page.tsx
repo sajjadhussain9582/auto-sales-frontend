@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useEffect, useState } from "react"
@@ -80,8 +82,12 @@ export default function IntegrationsPage() {
   const fetchEventTypes = async () => {
     setFetchingEvents(true)
     try {
-      const data = await integrationsService.getCalendlyEventTypes()
-      setEventTypes(data.collection || [])
+      const data = (await integrationsService.getCalendlyEventTypes()) as {
+        collection?: unknown[]
+      }
+      if (data && typeof data === "object" && "collection" in data) {
+        setEventTypes((data.collection as any[]) || [])
+      }
     } catch (err) {
       console.error("Failed to fetch event types", err)
     } finally {

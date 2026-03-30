@@ -3,17 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, MessagesSquare } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessagesSquare, RefreshCcw, Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Contact } from "@/types/contact";
 import { getContact } from "@/services/contacts.service";
+import { integrationsService } from "@/services/integrations.service";
+import { toast } from "sonner";
 
 export default function ContactDetailPage() {
   const params = useParams();
   const id = useMemo(() => (typeof params.id === "string" ? params.id : ""), [params.id]);
   const [data, setData] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +42,23 @@ export default function ContactDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const handleHubspotSync = async () => {
+    if (!data?.uuid) return;
+    setSyncing(true);
+    try {
+      await integrationsService.syncContactToHubspot(data.uuid);
+      toast.success("Contact synced to HubSpot successfully!");
+      // Optionally re-fetch to see updated external_ids
+      const updated = await getContact(id);
+      setData(updated);
+    } catch (err) {
+      console.error("Failed to sync contact to HubSpot", err);
+      toast.error("Failed to sync contact to HubSpot.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -71,14 +91,29 @@ export default function ContactDetailPage() {
             Back
           </Link>
         </Button>
-        {data.ghlContactId ? (
-          <Button asChild variant="outline" size="sm">
-            <a href="#" onClick={(e) => e.preventDefault()} title="Connect GHL to enable deep links">
-              <ExternalLink className="size-4" aria-hidden />
-              Open in GHL (soon)
-            </a>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleHubspotSync}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <RefreshCcw className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Share className="mr-2 size-4" />
+            )}
+            Sync to HubSpot
           </Button>
-        ) : null}
+          {data.ghlContactId ? (
+            <Button asChild variant="outline" size="sm">
+              <a href="#" onClick={(e) => e.preventDefault()} title="Connect GHL to enable deep links">
+                <ExternalLink className="size-4" aria-hidden />
+                Open in GHL (soon)
+              </a>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <Card className="border-border bg-card">

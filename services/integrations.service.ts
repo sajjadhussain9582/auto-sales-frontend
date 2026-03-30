@@ -87,4 +87,16 @@ export const integrationsService = {
     if (!res.ok) throw new Error(await readErrorResponse(res))
     return res.json()
   },
+
+  async syncContactToHubspot(contactUuid: string): Promise<any> {
+    const res = await fetch(
+      `${getApiBaseUrl()}/integrations/hubspot/sync/${encodeURIComponent(contactUuid)}`,
+      {
+        method: "POST",
+        headers: getHeaders(),
+      }
+    )
+    if (!res.ok) throw new Error(await readErrorResponse(res))
+    return res.json()
+  },
 }

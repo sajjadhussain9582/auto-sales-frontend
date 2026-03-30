@@ -1,4 +1,5 @@
 import { apiRequest, getSessionToken } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-config";
 import type { ConversationDetail, SenderType } from "@/types/conversation";
 
 function normalizeMessages(raw: unknown): ConversationDetail["messages"] {
@@ -91,7 +92,7 @@ export const conversationsService = {
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const res = await fetch(
-      `/api/conversations/${encodeURIComponent(conversationUuid)}/inbound`,
+      `${getApiBaseUrl()}/conversations/${encodeURIComponent(conversationUuid)}/inbound`,
       {
         method: "POST",
         headers,

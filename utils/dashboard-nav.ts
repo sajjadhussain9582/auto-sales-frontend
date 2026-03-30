@@ -9,6 +9,7 @@ import {
   Workflow,
   BookOpen,
   Settings,
+  LayoutTemplate,
 } from "lucide-react";
 
 export type NavItem = {
@@ -19,6 +20,7 @@ export type NavItem = {
 
 export const DASHBOARD_NAV: readonly NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/lead-flow", label: "Lead flow", icon: LayoutTemplate },
   { href: "/dashboard/intake", label: "New lead", icon: MessageSquarePlus },
   { href: "/dashboard/messages", label: "Messages", icon: Inbox },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },

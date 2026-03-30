@@ -1,4 +1,5 @@
 import { getSessionToken } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-config";
 import type { FormSubmitPayload, FormSubmitResponse } from "@/types/form";
 
 function formatSubmitError(data: unknown, status: number, fallback: string): string {
@@ -22,10 +23,10 @@ export async function submitIntakeForm(
   const token = getSessionToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch("/api/forms/submit", {
+  const res = await fetch(`${getApiBaseUrl()}/forms/${encodeURIComponent(formId)}/submit`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ formId, payload }),
+    body: JSON.stringify(payload),
   });
 
   const text = await res.text();

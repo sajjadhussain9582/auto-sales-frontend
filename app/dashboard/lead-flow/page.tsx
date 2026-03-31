@@ -126,8 +126,8 @@ export default function LeadFlowPage() {
             {stages.map((column) => (
               <div
                 key={column.key}
-                className="flex w-80 flex-col rounded-lg border border-border bg-muted/50"
-              >
+             
+  className="flex h-[70vh] w-80 flex-col rounded-lg border border-border bg-muted/50"  >
                 <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-lg border-b bg-background/50 p-4">
                   <div className="flex items-center space-x-2">
                     <h3 className="font-semibold">{column.pipelinestage}</h3>
@@ -146,7 +146,7 @@ export default function LeadFlowPage() {
                       {...provided.droppableProps}
                       ref={provided.innerRef}
                       className={cn(
-                        "min-h-[500px] flex-1 space-y-3 p-3 transition-colors",
+                        "min-h-[500px] flex-1 space-y-3 overflow-y-auto p-3 transition-colors",
                         snapshot.isDraggingOver ? "bg-muted/80" : ""
                       )}
                     >

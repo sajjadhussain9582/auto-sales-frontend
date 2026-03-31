@@ -22,13 +22,21 @@ export type ContactImportResult = {
 
 function normalizeContact(raw: Record<string, unknown>): Contact {
   return {
-    id: String(raw.id ?? ""),
-    name: String(raw.name ?? raw.email ?? "Unknown"),
+    id: String(raw.id ?? raw.uuid ?? ""),
+    uuid: raw.uuid !== undefined ? String(raw.uuid) : undefined,
+    name: String(raw.name ?? raw.username ?? raw.email ?? "Unknown"),
     email: raw.email !== undefined ? String(raw.email) : undefined,
     phone: raw.phone !== undefined ? String(raw.phone) : undefined,
     company: raw.company !== undefined ? String(raw.company) : undefined,
     channel: raw.channel !== undefined ? String(raw.channel) : undefined,
     stage: raw.stage !== undefined ? String(raw.stage) : undefined,
+    status: raw.status !== undefined ? String(raw.status) : undefined,
+    updatedAt:
+      raw.updated_at !== undefined
+        ? String(raw.updated_at)
+        : raw.updatedAt !== undefined
+          ? String(raw.updatedAt)
+          : undefined,
     tags: Array.isArray(raw.tags) ? raw.tags.map(String) : undefined,
     notes: raw.notes !== undefined ? String(raw.notes) : undefined,
     ghlContactId:

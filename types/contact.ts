@@ -7,6 +7,8 @@ export type Contact = {
   company?: string;
   channel?: string;
   stage?: string;
+  status?: string;
+  updatedAt?: string;
   tags?: string[];
   notes?: string;
   ghlContactId?: string;

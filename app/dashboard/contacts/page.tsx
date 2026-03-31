@@ -17,6 +17,13 @@ export default function ContactsPage() {
 
   const effectiveQuery = useMemo(() => query.trim(), [query]);
 
+  const formatUpdatedAt = (value?: string) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString();
+  };
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -86,35 +93,48 @@ export default function ContactsPage() {
               <p>No contacts yet.</p>
             </div>
           ) : (
-            <div className="divide-border overflow-hidden rounded-lg border divide-y">
-              {rows.map((c, i) => (
-                <Link
-                  key={i}
-                  href={`/dashboard/contacts/${encodeURIComponent(c.id)}`}
-                  className="hover:bg-muted/50 block px-4 py-3 transition-colors"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-foreground truncate text-sm font-medium">{c.name}</p>
-                      <p className="text-muted-foreground mt-1 line-clamp-1 text-sm">
-                        {[c.email, c.phone, c.company].filter(Boolean).join(" · ") || "—"}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {c.stage ? (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="px-4 py-3 text-left font-medium">#</th>
+                    <th className="px-4 py-3 text-left font-medium">Name</th>
+                    <th className="px-4 py-3 text-left font-medium">Email</th>
+                    <th className="px-4 py-3 text-left font-medium">Company</th>
+                    <th className="px-4 py-3 text-left font-medium">Stage</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-left font-medium">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((c, i) => (
+                    <tr key={c.id || c.uuid || i} className="border-b last:border-0 hover:bg-muted/40">
+                      <td className="px-4 py-3 align-top">{i + 1}</td>
+                      <td className="px-4 py-3 align-top">
+                        <Link
+                          href={`/dashboard/contacts/${encodeURIComponent(c.id)}`}
+                          className="text-foreground hover:underline"
+                        >
+                          {c.name || "Unknown"}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{c.email || "—"}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{c.company || "—"}</td>
+                      <td className="px-4 py-3 align-top">
                         <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs capitalize">
-                          {c.stage}
+                          {c.stage || "—"}
                         </span>
-                      ) : null}
-                      {c.channel ? (
+                      </td>
+                      <td className="px-4 py-3 align-top">
                         <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs capitalize">
-                          {c.channel}
+                          {c.status || "—"}
                         </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                      </td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{formatUpdatedAt(c.updatedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

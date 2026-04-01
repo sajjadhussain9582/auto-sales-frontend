@@ -1,171 +1,94 @@
-# Backend API contracts — Phase 2 + UUID handoff
 
-This document is for frontend/mobile clients. It describes **what exists today**, **Phase 2 additions**, **UUID rules**, and **breaking / additive changes**.
+# Frontend Guide: Adding "Meeting Booked" Stage to Kanban
 
-Base URL prefix: **`/api/v1`** (unless noted).
+## Overview
 
----
+The backend now includes a new "Meeting Booked" pipeline stage that gets automatically set when a lead books a meeting via Calendly polling. This guide explains how to integrate this stage into the frontend Kanban board.
 
-## Auth
+## Backend Changes
 
-| Area | Rule |
-|------|------|
-| Staff / authenticated routes | `Authorization: Bearer <access_token>` (login/register flows as today). |
-| Public form submit | `POST /forms/{form_id}/submit` — if `FORM_SUBMIT_API_KEY` is set in env, send `X-API-Key: <key>`. |
-| GHL webhooks | If `GHL_WEBHOOK_SECRET` is set, send matching value as `X-GHL-Secret` or `Authorization: Bearer <secret>`. If unset, webhooks accept any caller (dev only). |
+- Added "Meeting Booked" stage to `pipeline_stages` table with key `meeting_booked`
+- API endpoint `/api/v1/pipeline-stages` returns all stages ordered by `order_index`
+- Contacts get moved to this stage when Calendly detects a new booking
 
----
+## Frontend Implementation
 
-## UUID transition (Path A — compat)
+### 1. Fetch Pipeline Stages Dynamically
 
-- **Integer primary keys (`id`) remain** in the database and in many responses for backward compatibility.
-- **Public UUIDs** are stored in column `uuid` (API field name **`uuid`** on forms, KB, conversations, messages, contacts, etc.).
-- **Frontend should prefer `uuid`** for new features: URLs, caching, cross-service references.
-- **Deprecated pattern**: relying only on numeric `id` for conversations/contacts/messages in new UI flows. Numeric IDs still work where documented.
+If not already implemented, update your Kanban component to fetch stages from the API:
 
-**Form submit response** now includes (in addition to legacy int IDs):
+```javascript
+// In your Kanban component
+const [pipelineStages, setPipelineStages] = useState([]);
 
-- `submission_uuid`, `contact_uuid`, `conversation_uuid`, `inbound_message_uuid`, `ai_reply_message_uuid`
-
----
-
-## Implemented today (baseline + Phase 2)
-
-### Users / auth
-
-- `POST /users/register`, `POST /users/login`, `GET /users/me` (unchanged semantics).
-
-### Knowledge base
-
-- `GET/POST /knowledge-base`, `PATCH/DELETE /knowledge-base/{entry_id}` (Bearer).
-- Responses include **`uuid`** per entry (plus legacy **`id`**).
-
-### Forms
-
-- `POST /forms`, `GET /forms`, `GET /forms/{form_id}` (Bearer).
-- Responses include **`uuid`** (plus **`id`**).
-- `POST /forms/{form_id}/submit` (public + optional API key).
-
-### Conversations / messaging (Phase 2)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/conversations` | **Inbox list.** Query: `cursor`, `limit`, `channel`, `status`, `is_escalated`. |
-| `GET` | `/conversations/{conversation_ref}` | **Thread.** `conversation_ref` = **UUID** *or* legacy **integer id**. |
-| `POST` | `/conversations/{conversation_uuid}/messages` | **Staff reply.** Body: `message`, `sender_type` (default `human`), `channel` (optional). UUID only. |
-
-**Inbox item shape (summary):**
-
-- `uuid`, `contact_preview` (`uuid`, `email`, `username`, `company`), `last_message_preview`, `updated_at`, `is_escalated`, `channel`, `status`
-
-**Thread shape:**
-
-- `id`, `uuid`, `contact_id`, `contact_uuid`, `channel`, `status`, `is_escalated`, `last_intent`, `qualification_stage`
-- `messages[]`: `id`, `uuid`, `conversation_uuid`, `sender_type`, `message`, `channel`, `is_generated`, `rag_source_kb_ids`, `created_at`
-
-### Contacts CRM (Phase 2)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/contacts` | List: `search`, `cursor`, `limit`, `channel` (filters `source`), `stage`, `tag`. |
-| `GET` | `/contacts/{contact_uuid}` | Detail + **`conversation_uuids`**. |
-| `PATCH` | `/contacts/{contact_uuid}` | `stage`, `tags`, `notes`, `assigned_user_id`, `external_ids` (merged), `status`. |
-
-Contact fields include: `tags` (JSON array), `notes`, `stage`, `external_ids` (e.g. `ghl_contact_id`).
-
-### Campaigns & templates (Phase 2)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/campaigns` | List campaigns. |
-| `GET` | `/campaigns/{campaign_uuid}` | Detail + target preview. |
-| `POST` | `/campaigns` | Create draft (`name`, `channel`, `audience_filter`, `scheduled_at`). |
-| `PATCH` | `/campaigns/{campaign_uuid}` | Update `name`, `status`, `scheduled_at`, `audience_filter`. |
-| `POST` | `/campaigns/{campaign_uuid}/send` | **Stub:** enqueues logged rows; real provider delivery = future phase. |
-| `GET` | `/templates` | List message templates. |
-| `POST` | `/templates` | Create template (`name`, `channel`, `body`). |
-| `GET` | `/templates/{template_id}` | Get by integer **id** (legacy-style; list returns `uuid` for primary use). |
-
-### Integrations & webhooks (Phase 2)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/integrations` | Status per provider (`ghl` seeded as disconnected). |
-| `POST` | `/integrations/{provider}/connect` | Returns **stub** `oauth_url` + instructions. |
-| `POST` | `/integrations/{provider}/disconnect` | Sets disconnected. |
-| `POST` | `/webhooks/ghl/message` | Inbound; persists **`webhook_events`**. |
-| `POST` | `/webhooks/ghl/contact` | Same. |
-
-Webhook handlers **do not create contacts/messages yet** beyond storing events (translation layer can be added later).
-
----
-
-## Mismatches / notes for frontend
-
-1. **IDs vs UUIDs**: Use **`uuid`** for new navigation (`/conversations/{uuid}`, `/contacts/{uuid}`, …). Thread GET still accepts numeric id for old links.
-2. **Forms/KB URLs**: Still use integer `form_id` / `entry_id` on some routes; responses expose **`uuid`** for forward-compatible storage.
-3. **Templates**: List uses UUID; get-by-id endpoint still uses integer `template_id` — consider standardizing on UUID in a later release.
-4. **Campaign send**: Returns `job_id` and `queued`; delivery is not wired to email/SMS providers yet.
-
----
-
-## Example JSON
-
-**POST `/conversations/{uuid}/messages`**
-
-```json
-{
-  "message": "Thanks — we’ll call you tomorrow.",
-  "sender_type": "human",
-  "channel": "email"
-}
+useEffect(() => {
+  fetch('/api/v1/pipeline-stages')
+    .then(res => res.json())
+    .then(data => {
+      setPipelineStages(data);
+    })
+    .catch(err => console.error('Failed to fetch pipeline stages:', err));
+}, []);
 ```
 
-**PATCH `/contacts/{uuid}`**
+### 2. Render Stages in Kanban
 
-```json
-{
-  "stage": "qualified",
-  "tags": ["hot", "enterprise"],
-  "notes": "Called 3/18 — interested in enterprise tier.",
-  "external_ids": { "ghl_contact_id": "abc123" }
-}
+Map through the fetched stages to create columns:
+
+```javascript
+{pipelineStages.map(stage => (
+  <KanbanColumn
+    key={stage.key}
+    title={stage.pipelinestage}
+    stageKey={stage.key}
+    contacts={contacts.filter(c => c.pipeline_stage === stage.key)}
+  />
+))}
 ```
 
-**GET `/conversations` (snippet)**
+### 3. Contact Filtering
 
-```json
-[
-  {
-    "uuid": "550e8400-e29b-41d4-a716-446655440000",
-    "contact_preview": {
-      "uuid": "...",
-      "email": "user@example.com",
-      "username": "Jane",
-      "company": "Acme"
-    },
-    "last_message_preview": "Thanks for reaching out…",
-    "updated_at": "2025-03-18T12:00:00",
-    "is_escalated": false,
-    "channel": "website",
-    "status": "open"
-  }
-]
+Ensure contacts are filtered by `pipeline_stage` field:
+
+```javascript
+const contactsInStage = contacts.filter(contact => 
+  contact.pipeline_stage === stage.key
+);
 ```
 
----
+### 4. Stage Order
 
-## Environment (reference)
+The stages are ordered by `order_index` from the API, so they will appear in the correct sequence:
 
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | Postgres (e.g. Supabase) or SQLite. |
-| `GHL_WEBHOOK_SECRET` | Optional webhook auth. |
-| `PUBLIC_APP_URL` | Used in integration OAuth stub URLs. |
-| `FORM_SUBMIT_API_KEY` | Optional lock on public form submit. |
+1. Discovery
+2. Qualified
+3. Meeting Booked (new)
+4. Proposal Ready
+5. Negotiation
+6. Won
+7. Lost
 
----
+### 5. Real-time Updates
 
-## Database (ops)
+When Calendly polling detects a booking, the contact's `pipeline_stage` updates to `meeting_booked`. Make sure your frontend refreshes contact data periodically or via WebSocket to show the move.
 
-On startup the app runs **additive DDL** (where supported): `uuid` columns on core tables, CRM columns on `contacts`, `conversation_uuid` on `messages`, plus new tables (`campaigns`, `campaign_targets`, `campaign_messages`, `templates`, `integrations`, `integration_runs`, `webhook_events`). Existing rows are **backfilled** with UUIDs. For production Postgres, review migrations in staging first.
+### 6. Visual Indicators
+
+Consider adding special styling for the "Meeting Booked" stage:
+
+- Green background or checkmark icon
+- Tooltip showing booking details from `contact.external_ids.calendly`
+
+## Testing
+
+1. Book a test meeting on Calendly
+2. Wait for worker to poll (every 5 minutes)
+3. Check that contact moves to "Meeting Booked" column
+4. Verify booking metadata is stored and displayable
+
+## Notes
+
+- The stage appears automatically once you add it to the DB (as per previous instructions)
+- No frontend code changes needed if stages are already fetched dynamically
+- Ensure API authentication headers are included in fetch requests `</content>`
+  `<parameter name="filePath">`/home/sh/sajjad/Agentic-communication-system/agentic-sytem-backend/FRONTEND_MEETING_BOOKED_KANBAN_GUIDE.md

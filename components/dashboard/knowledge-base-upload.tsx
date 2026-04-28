@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Upload, Type, Loader2, X, Plus, FileText, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { knowledgeBaseService } from "@/services/knowledge-base.service"
 import { toast } from "sonner"
 
@@ -24,8 +23,43 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
   const [loading, setLoading] = useState(false)
   const [category, setCategory] = useState("general")
   const [file, setFile] = useState<File | null>(null)
-  const [pastedText, setPastedText] = useState("")
   const [sourceName, setSourceName] = useState("")
+
+  const editorRef = useRef<HTMLDivElement>(null)
+  const quillInstance = useRef<any>(null)
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && editorRef.current && mode === "paste") {
+      import("quill/dist/quill.snow.css")
+
+      const initQuill = async () => {
+        const { default: Quill } = await import("quill")
+
+        if (quillInstance.current) return
+
+        quillInstance.current = new Quill(editorRef.current!, {
+          theme: "snow",
+          placeholder: "Input the raw data context here... (e.g. email snippets, internal memos)",
+          modules: {
+            toolbar: [
+              [{ header: [1, 2, 3, false] }],
+              ["bold", "italic", "underline", "strike"],
+              [{ list: "ordered" }, { list: "bullet" }],
+              ["link", "clean"],
+            ],
+          },
+        })
+      }
+
+      initQuill()
+    }
+
+    return () => {
+      if (mode !== "paste") {
+        quillInstance.current = null
+      }
+    }
+  }, [mode])
 
   const handleUpload = async () => {
     if (!file) return
@@ -45,16 +79,20 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
   }
 
   const handlePaste = async () => {
-    if (!pastedText || !sourceName) {
+    const editorContent = quillInstance.current?.root.innerHTML || ""
+    const textContent = quillInstance.current?.getText().trim() || ""
+
+    if (!textContent || !sourceName) {
       toast.error("Please provide both content and a source handle.")
       return
     }
+
     setLoading(true)
     try {
-      const res = await knowledgeBaseService.paste(pastedText, sourceName, category)
+      const res = await knowledgeBaseService.paste(editorContent, sourceName, category)
       if (res.ok) {
         toast.success("Text snippet indexed successfully.")
-        setPastedText("")
+        quillInstance.current?.setContents([])
         setSourceName("")
         onSuccess()
       }
@@ -99,7 +137,7 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-8 px-8 pb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
@@ -130,7 +168,7 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
                   Source Identifier
                 </label>
                 <Input
-                  placeholder="e.g. Website FAQ Snip v2"
+                  placeholder="e.g. FAQ Snip v2"
                   value={sourceName}
                   onChange={(e) => setSourceName(e.target.value)}
                   className="h-12 rounded-xl bg-background/50 px-4 border-border hover:border-primary/30 focus:ring-primary/20"
@@ -142,16 +180,15 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
           {mode === "upload" ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
               <div
-                className={`group relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-                  file 
-                  ? "border-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.1)]" 
+                className={`group relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${file
+                  ? "border-primary bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.1)]"
                   : "border-border hover:border-primary/40 hover:bg-muted/30"
-                }`}
+                  }`}
                 onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-primary/5'); }}
-                onDragLeave={(e) => { e.preventDefault(); if(!file) e.currentTarget.classList.remove('border-primary', 'bg-primary/5'); }}
+                onDragLeave={(e) => { e.preventDefault(); if (!file) e.currentTarget.classList.remove('border-primary', 'bg-primary/5'); }}
                 onDrop={(e) => {
                   e.preventDefault()
-                  if(!file) e.currentTarget.classList.remove('border-primary', 'bg-primary/5');
+                  if (!file) e.currentTarget.classList.remove('border-primary', 'bg-primary/5');
                   const f = e.dataTransfer.files[0]
                   if (f && (f.type === "application/pdf" || f.type === "text/csv")) {
                     setFile(f)
@@ -236,19 +273,43 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] ml-1">
                   Knowledge Payload
                 </label>
-                <div className="relative group">
-                   <div className="absolute inset-0 bg-primary/5 rounded-2xl transition-opacity group-hover:opacity-100 opacity-0" />
-                   <Textarea
-                    placeholder="Input the raw data context here... (e.g. email snippets, internal memos)"
-                    className="min-h-[280px] rounded-2xl bg-background/50 border-border px-6 py-6 resize-none focus:ring-primary/20 text-md leading-relaxed font-serif"
-                    value={pastedText}
-                    onChange={(e) => setPastedText(e.target.value)}
-                  />
+                <div
+                  className="relative group quill-premium-wrapper cursor-text"
+                  onClick={() => quillInstance.current?.focus()}
+                >
+                  <div className="absolute inset-0 bg-primary/5 rounded-2xl transition-opacity group-hover:opacity-100 opacity-0 pointer-events-none" />
+                  <style jsx global>{`
+                     .quill-premium-wrapper .ql-toolbar.ql-snow {
+                        border-top-left-radius: 1rem;
+                        border-top-right-radius: 1rem;
+                        background: oklch(0.97 0 0 / 50%) !important;
+                        border-color: var(--border) !important;
+                     }
+                     .quill-premium-wrapper .ql-container.ql-snow {
+                        border-bottom-left-radius: 1rem;
+                        border-bottom-right-radius: 1rem;
+                        background: oklch(1 0 0 / 100%) !important;
+                        border-color: var(--border) !important;
+                        font-family: serif !important;
+                        font-size: 1rem !important;
+                        min-height: 300px !important;
+                     }
+                     .dark .quill-premium-wrapper .ql-toolbar.ql-snow {
+                        background: oklch(0.269 0 0 / 50%) !important;
+                     }
+                     .dark .quill-premium-wrapper .ql-container.ql-snow {
+                        background: oklch(0.205 0 0 / 100%) !important;
+                     }
+                     .quill-premium-wrapper .ql-editor {
+                        min-height: 300px !important;
+                     }
+                   `}</style>
+                  <div ref={editorRef} />
                 </div>
               </div>
               <Button
                 className="w-full h-14 text-lg font-bold rounded-2xl shadow-lg transition-all hover:shadow-primary/20 active:scale-[0.98]"
-                disabled={!pastedText || !sourceName || loading}
+                disabled={loading || !sourceName}
                 onClick={handlePaste}
               >
                 {loading ? (
@@ -267,19 +328,19 @@ export function KnowledgeBaseUpload({ onSuccess }: KnowledgeBaseUploadProps) {
           )}
         </CardContent>
       </Card>
-      
+
       <div className="mt-8 flex items-center justify-center gap-8 text-[10px] text-muted-foreground font-bold uppercase tracking-[0.1em] pointer-events-none opacity-40">
         <div className="flex items-center gap-2">
-           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-           ISO 27001 COMPLIANT
+          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+          ISO 27001 COMPLIANT
         </div>
         <div className="flex items-center gap-2">
-           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-           256-BIT ENCRYPTION
+          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+          256-BIT ENCRYPTION
         </div>
         <div className="flex items-center gap-2">
-           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-           ZERO PERSISTENCE
+          <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+          ZERO PERSISTENCE
         </div>
       </div>
     </div>

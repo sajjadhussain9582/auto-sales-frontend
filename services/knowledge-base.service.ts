@@ -1,11 +1,9 @@
 import { apiRequest } from "@/lib/api-client";
-import type { KnowledgeBaseRow } from "@/types/knowledge";
+import type { KnowledgeBaseRow, KnowledgeBaseListResponse } from "@/types/knowledge";
 
 export const knowledgeBaseService = {
-  async list(): Promise<KnowledgeBaseRow[]> {
-    const data = await apiRequest<unknown>("/knowledge-base/");
-    if (!Array.isArray(data)) return [];
-    return data as KnowledgeBaseRow[];
+  async list(skip: number = 0, limit: number = 5): Promise<KnowledgeBaseListResponse> {
+    return apiRequest(`/knowledge-base/?skip=${skip}&limit=${limit}`);
   },
 
   async upload(file: File, category?: string): Promise<{ ok: boolean; source_name: string; chunks_created: number }> {
@@ -31,14 +29,13 @@ export const knowledgeBaseService = {
     });
   },
 
-  async deleteEntry(id: string | number): Promise<{ ok: boolean }> {
-    return apiRequest(`/knowledge-base/${id}`, {
+  async deleteEntry(uuid: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/knowledge-base/${uuid}`, {
       method: "DELETE",
     });
   },
 
-  async deleteSource(sourceName: string): Promise<{ ok: boolean }> {
-    // Assuming DELETE /knowledge-base/source/{sourceName} exists or we delete all items with that source
+  async deleteSource(sourceName: string): Promise<{ ok: boolean; deleted_count?: number }> {
     return apiRequest(`/knowledge-base/source/${encodeURIComponent(sourceName)}`, {
       method: "DELETE",
     });

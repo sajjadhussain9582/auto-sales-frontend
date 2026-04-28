@@ -178,12 +178,12 @@ export default function LeadFlowPage() {
                                       {lead.company || "No Company"}
                                     </p> */}
                                   </div>
-                                  <Badge
+                                  {/* <Badge
                                     variant="outline"
                                     className="px-1.5 py-0 text-[10px]"
                                   >
                                     Score: {Math.round(lead.lead_score)}
-                                  </Badge>
+                                  </Badge> */}
                                 </div>
 
                                 <div className="flex items-center justify-between border-t border-border/50 pt-2">

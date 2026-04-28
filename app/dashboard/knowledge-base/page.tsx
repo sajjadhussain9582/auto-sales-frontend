@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { 
-  BookOpen, 
-  Loader2, 
-  FileText, 
-  HelpCircle, 
-  ChevronDown, 
+import {
+  BookOpen,
+  Loader2,
+  FileText,
+  HelpCircle,
+  ChevronDown,
   ChevronRight,
   Database,
   PlusCircle,
@@ -14,7 +14,10 @@ import {
   Trash2,
   RefreshCcw,
   ExternalLink,
-  Search
+  Search,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +33,7 @@ import { KnowledgeBaseUpload } from "@/components/dashboard/knowledge-base-uploa
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { ConfirmDeleteModal } from "@/components/dashboard/confirm-delete-modal"
 
 type Tab = "library" | "train" | "sources"
 
@@ -41,26 +45,49 @@ export default function KnowledgeBasePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({})
 
+  // Pagination State
+  const [skip, setSkip] = useState(0)
+  const [limit, setLimit] = useState(10)
+  const [total, setTotal] = useState(0)
+
+  // Delete Modal State
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean
+    type: "entry" | "source"
+    id?: string
+    name?: string
+  }>({ isOpen: false, type: "entry" })
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const load = () => {
     setLoading(true)
     setError(null)
     knowledgeBaseService
-      .list()
-      .then(setRows)
+      .list(skip, limit)
+      .then((res) => {
+        setRows(res.items)
+        setTotal(res.total)
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     load()
-  }, [])
+  }, [skip, limit])
+
+  useEffect(() => {
+    if (searchQuery) {
+      setSkip(0)
+    }
+  }, [searchQuery])
 
   const filteredRows = useMemo(() => {
     if (!searchQuery) return rows
     const q = searchQuery.toLowerCase()
-    return rows.filter(r => 
-      r.question?.toLowerCase().includes(q) || 
-      r.answer?.toLowerCase().includes(q) || 
+    return rows.filter(r =>
+      r.question?.toLowerCase().includes(q) ||
+      r.answer?.toLowerCase().includes(q) ||
       r.source_name?.toLowerCase().includes(q)
     )
   }, [rows, searchQuery])
@@ -89,13 +116,13 @@ export default function KnowledgeBasePage() {
 
   const sources = useMemo(() => {
     const allGroups: Record<string, { name: string, chunks: number, embedded: number, type: string }> = {}
-    
+
     rows.forEach(row => {
       if (row.source_name) {
         if (!allGroups[row.source_name]) {
-          allGroups[row.source_name] = { 
-            name: row.source_name, 
-            chunks: 0, 
+          allGroups[row.source_name] = {
+            name: row.source_name,
+            chunks: 0,
             embedded: 0,
             type: row.source_type || 'document'
           }
@@ -104,7 +131,7 @@ export default function KnowledgeBasePage() {
         if (row.has_embedding) allGroups[row.source_name].embedded++
       }
     })
-    
+
     return Object.values(allGroups)
   }, [rows])
 
@@ -115,30 +142,59 @@ export default function KnowledgeBasePage() {
     }))
   }
 
-  const handleDeleteSource = async (sourceName: string) => {
-    if (!confirm(`Are you sure you want to delete all chunks for "${sourceName}"?`)) return
+  // Updated Delete Handlers
+  const handleDeleteSource = (sourceName: string) => {
+    setDeleteDialog({ isOpen: true, type: "source", name: sourceName })
+  }
+
+  const handleDeleteEntry = (uuid: string) => {
+    setDeleteDialog({ isOpen: true, type: "entry", id: uuid })
+  }
+
+  const executeDelete = async () => {
+    setIsDeleting(true)
     try {
-      await knowledgeBaseService.deleteSource(sourceName)
-      toast.success(`Source "${sourceName}" deleted`)
+      if (deleteDialog.type === "source" && deleteDialog.name) {
+        await knowledgeBaseService.deleteSource(deleteDialog.name)
+        toast.success(`Knowledge source "${deleteDialog.name}" has been wiped.`)
+      } else if (deleteDialog.type === "entry" && deleteDialog.id) {
+        await knowledgeBaseService.deleteEntry(deleteDialog.id)
+        toast.success("Knowledge unit removed successfully.")
+      }
+      setDeleteDialog(prev => ({ ...prev, isOpen: false }))
       load()
     } catch (e: any) {
-      toast.error(e.message || "Failed to delete source")
+      toast.error(e.message || "Failed to process deletion request.")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
-  const handleDeleteEntry = async (id: string | number) => {
-    if (!confirm("Delete this entry?")) return
-    try {
-      await knowledgeBaseService.deleteEntry(id)
-      toast.success("Entry deleted")
-      load()
-    } catch (e: any) {
-      toast.error(e.message || "Failed to delete entry")
-    }
-  }
+  // Pagination Helpers
+  const currentPage = Math.floor(skip / limit) + 1
+  const totalPages = Math.ceil(total / limit)
+  const canGoPrev = skip > 0
+  const canGoNext = skip + limit < total
+
+  const handlePrev = () => setSkip(Math.max(0, skip - limit))
+  const handleNext = () => setSkip(skip + limit)
+  const handleToPage = (p: number) => setSkip(p * limit)
 
   return (
     <div className="mx-auto space-y-8 pb-10">
+      <ConfirmDeleteModal
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={executeDelete}
+        loading={isDeleting}
+        title={deleteDialog.type === "source" ? "Wipe Source Data?" : "Remove Knowledge Unit?"}
+        description={
+          deleteDialog.type === "source"
+            ? `This will permanently delete "${deleteDialog.name}" and all associated data chunks. This action cannot be undone.`
+            : "Are you sure you want to remove this specific piece of information? it will no longer be available for AI retrieval."
+        }
+      />
+
       {/* Header Area */}
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div>
@@ -174,33 +230,30 @@ export default function KnowledgeBasePage() {
       <div className="flex border-b border-border overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab("library")}
-          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
-            activeTab === "library" 
-            ? "border-primary text-primary" 
+          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${activeTab === "library"
+            ? "border-primary text-primary"
             : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <BookOpen className="inline-block mr-2 h-4 w-4" />
           Knowledge Library
         </button>
         <button
           onClick={() => setActiveTab("train")}
-          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
-            activeTab === "train" 
-            ? "border-primary text-primary" 
+          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${activeTab === "train"
+            ? "border-primary text-primary"
             : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <Database className="inline-block mr-2 h-4 w-4" />
           Training Lab
         </button>
         <button
           onClick={() => setActiveTab("sources")}
-          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
-            activeTab === "sources" 
-            ? "border-primary text-primary" 
+          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${activeTab === "sources"
+            ? "border-primary text-primary"
             : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           <FileText className="inline-block mr-2 h-4 w-4" />
           Source Management
@@ -222,7 +275,7 @@ export default function KnowledgeBasePage() {
                 />
               </div>
               <div className="text-xs text-muted-foreground px-2">
-                Showing {filteredRows.length} entries in total
+                Showing {skip + 1}-{Math.min(skip + limit, total)} of {total} total entries
               </div>
             </div>
 
@@ -240,7 +293,7 @@ export default function KnowledgeBasePage() {
                   <div>
                     <h3 className="text-lg font-semibold">No results found</h3>
                     <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-1">
-                      {searchQuery 
+                      {searchQuery
                         ? `We couldn't find anything matching "${searchQuery}". Try a different term or clear the search.`
                         : "Start by adding some data to your knowledge base in the Training Lab."}
                     </p>
@@ -254,7 +307,6 @@ export default function KnowledgeBasePage() {
               </Card>
             ) : (
               <div className="space-y-8">
-                {/* Documents / Chunked Data */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                     <FileText className="h-4 w-4" />
@@ -266,7 +318,7 @@ export default function KnowledgeBasePage() {
                       const allEmbedded = chunks.every(c => c.has_embedding)
                       return (
                         <div key={sourceName} className="border border-border rounded-xl bg-card/40 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                          <div 
+                          <div
                             className="flex items-center justify-between p-4 cursor-pointer hover:bg-secondary/20 transition-colors"
                             onClick={() => toggleSource(sourceName)}
                           >
@@ -275,7 +327,7 @@ export default function KnowledgeBasePage() {
                                 <ChevronRight className="h-4 w-4" />
                               </div>
                               <div className="flex flex-col">
-                                <span className="font-semibold text-sm">{sourceName}</span>
+                                <span className="font-semibold text-sm line-clamp-1">{sourceName}</span>
                                 <span className="text-[10px] text-muted-foreground font-mono">{chunks.length} total chunks</span>
                               </div>
                             </div>
@@ -283,9 +335,9 @@ export default function KnowledgeBasePage() {
                               <Badge variant={allEmbedded ? "success" : "secondary"} className="h-6">
                                 {allEmbedded ? "Standardized" : "Processing"}
                               </Badge>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                 onClick={(e) => { e.stopPropagation(); handleDeleteSource(sourceName); }}
                               >
@@ -293,7 +345,7 @@ export default function KnowledgeBasePage() {
                               </Button>
                             </div>
                           </div>
-                          
+
                           {isExpanded && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 pt-0 bg-muted/5 border-t border-border/50">
                               {chunks.map((chunk) => (
@@ -302,11 +354,11 @@ export default function KnowledgeBasePage() {
                                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Chunk #{chunk.chunk_index || 0}</span>
                                     <div className="flex items-center gap-2">
                                       {chunk.has_embedding && <Badge variant="success" className="h-4 px-1 text-[8px] animate-pulse">Live</Badge>}
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={() => handleDeleteEntry(chunk.id)}
+                                        onClick={() => handleDeleteEntry(chunk.uuid)}
                                       >
                                         <Trash2 className="h-3 w-3" />
                                       </Button>
@@ -325,7 +377,6 @@ export default function KnowledgeBasePage() {
                   </div>
                 </div>
 
-                {/* Standalone Entries / FAQs */}
                 {groupedRows.standalone.length > 0 && (
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -341,11 +392,11 @@ export default function KnowledgeBasePage() {
                                 {row.question}
                               </CardTitle>
                               <div className="flex items-center gap-1 group-hover:opacity-100 transition-opacity">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={() => handleDeleteEntry(row.id)}
+                                  onClick={() => handleDeleteEntry(row.uuid)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -372,6 +423,50 @@ export default function KnowledgeBasePage() {
                     </div>
                   </div>
                 )}
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-border pt-6 bg-card/10 p-4 rounded-xl">
+                    <div className="text-sm text-muted-foreground">
+                      Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToPage(0)}
+                        disabled={!canGoPrev}
+                      >
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrev}
+                        disabled={!canGoPrev}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNext}
+                        disabled={!canGoNext}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToPage(totalPages - 1)}
+                        disabled={!canGoNext}
+                      >
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -381,27 +476,27 @@ export default function KnowledgeBasePage() {
           <div className="max-w-4xl mx-auto py-4">
             <KnowledgeBaseUpload onSuccess={() => { load(); setActiveTab("library"); }} />
             <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 opacity-70">
-               <div className="p-4 bg-muted/20 rounded-xl border border-border">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold mb-1">Upload Documents</h4>
-                  <p className="text-xs text-muted-foreground">PDF and CSV files are parsed and automatically chunked for the AI.</p>
-               </div>
-               <div className="p-4 bg-muted/20 rounded-xl border border-border">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
-                    <PlusCircle className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold mb-1">Paste Text</h4>
-                  <p className="text-xs text-muted-foreground">Quickly add snippets, emails, or FAQs without creating full files.</p>
-               </div>
-               <div className="p-4 bg-muted/20 rounded-xl border border-border">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
-                    <Database className="h-4 w-4" />
-                  </div>
-                  <h4 className="text-sm font-semibold mb-1">AI Ingestion</h4>
-                  <p className="text-xs text-muted-foreground">All data is converted into vector embeddings for accurate RAG retrieval.</p>
-               </div>
+              <div className="p-4 bg-muted/20 rounded-xl border border-border">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <h4 className="text-sm font-semibold mb-1">Upload Documents</h4>
+                <p className="text-xs text-muted-foreground">PDF and CSV files are parsed and automatically chunked for the AI.</p>
+              </div>
+              <div className="p-4 bg-muted/20 rounded-xl border border-border">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <PlusCircle className="h-4 w-4" />
+                </div>
+                <h4 className="text-sm font-semibold mb-1">Paste Text</h4>
+                <p className="text-xs text-muted-foreground">Quickly add snippets, emails, or FAQs without creating full files.</p>
+              </div>
+              <div className="p-4 bg-muted/20 rounded-xl border border-border">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <Database className="h-4 w-4" />
+                </div>
+                <h4 className="text-sm font-semibold mb-1">AI Ingestion</h4>
+                <p className="text-xs text-muted-foreground">All data is converted into vector embeddings for accurate RAG retrieval.</p>
+              </div>
             </div>
           </div>
         )}
@@ -442,13 +537,13 @@ export default function KnowledgeBasePage() {
                                 <div className="p-2 rounded bg-primary/5 text-primary">
                                   {source.type === 'faq' ? <HelpCircle className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                                 </div>
-                                <span className="font-semibold text-foreground">{source.name}</span>
+                                <span className="font-semibold text-foreground max-w-[200px] truncate block">{source.name}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                               <Badge variant="outline" className="uppercase text-[9px] font-bold">
-                                 {source.type}
-                               </Badge>
+                              <Badge variant="outline" className="uppercase text-[9px] font-bold">
+                                {source.type}
+                              </Badge>
                             </td>
                             <td className="px-6 py-4 text-muted-foreground">
                               {source.chunks} units
@@ -457,7 +552,7 @@ export default function KnowledgeBasePage() {
                               <div className="flex items-center gap-2">
                                 <div className={`h-2 w-2 rounded-full ${source.embedded === source.chunks ? 'bg-success animate-pulse' : 'bg-warning'}`} />
                                 <span className="text-xs">
-                                  {source.embedded === source.chunks ? 'Optimal' : `In-Progress (${Math.round((source.embedded/source.chunks)*100)}%)`}
+                                  {source.embedded === source.chunks ? 'Optimal' : `In-Progress (${Math.round((source.embedded / source.chunks) * 100)}%)`}
                                 </span>
                               </div>
                             </td>
@@ -466,9 +561,9 @@ export default function KnowledgeBasePage() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-primary">
                                   <ExternalLink className="h-4 w-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   className="h-8 w-8 hover:text-destructive"
                                   onClick={() => handleDeleteSource(source.name)}
                                 >
